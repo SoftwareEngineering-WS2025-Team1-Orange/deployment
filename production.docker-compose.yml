@@ -1,0 +1,127 @@
+services:
+  bright-impact-mainframe-prod:
+    container_name: bright-impact-mainframe-prod
+    image: ghcr.io/softwareengineering-ws2025-team1-orange/mainframe:latest
+    ports:
+      - 28080:3000
+    networks:
+      - proxynet
+      - bright-impact-prod-internal
+    environment:
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@192.168.178.63:35432/postgres?schema=public&pgbouncer=true
+      - DONATIONBOX_JWT_ACCESS_SECRET=${DONATIONBOX_JWT_ACCESS_SECRET}
+      - DONATOR_JWT_ACCESS_SECRET=${DONATOR_JWT_ACCESS_SECRET}
+      - DONATOR_JWT_REFRESH_SECRET=${DONATOR_JWT_REFRESH_SECRET}
+      - NGO_JWT_ACCESS_SECRET=${NGO_JWT_ACCESS_SECRET}
+      - NGO_JWT_REFRESH_SECRET=${NGO_JWT_REFRESH_SECRET}
+      - MINIO_ENDPOINT=bi-minio.sokutan.de
+      - MINIO_PORT=443
+      - MINIO_ACCESS_KEY=minio
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - MINIO_USE_SSL=true
+      - MONERO_WALLET_PUBLIC_KEY=41fLkHicU9w9a7mNpfxk13NxqB2FrzFc5HSnbDn1NUPwXy6dkkUgsyQVUBZ7qweyP19BWdMYJ4oq4D2SJ1eexPTv9MLCvQ3
+      - MONERO_MINING_POOL_BASE_URL=https://api.hashvault.pro/v3/monero/wallet
+      - NODE_ENV=staging
+
+  bright-impact-organization-website-prod:
+    container_name: bright-impact-organization-website-prod
+    image: ghcr.io/softwareengineering-ws2025-team1-orange/organization-website:latest
+    ports:
+      - 14080:80
+    networks:
+      - proxynet
+
+  bright-impact-minio-staging:
+    image: minio/minio
+    restart: always
+    container_name: bright-impact-minio-staging
+    volumes:
+      - bright_impact_minio_staging_data:/data:Z
+    environment:
+      - MINIO_ROOT_USER=minio
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+      - MC_HOST_custom=https://preview-bi-minio.sokutan.de:443/
+    ports:
+      - 21000:9000
+      - 21001:9001
+    networks:
+      - proxynet
+    command: "server /data --console-address :9001"
+    healthcheck:
+      test: [ "CMD", "mc", "ready", "custom" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pg-0:
+    container_name: pg-0
+    image: bitnami/postgresql-repmgr:14
+    ports:
+      - 5432
+    volumes:
+      - bright_impact_pg_0_prod_data:/bitnami/postgresql
+    environment:
+      - POSTGRESQL_POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRESQL_USERNAME=customuser
+      - POSTGRESQL_PASSWORD=${POSTGRES_CUSTOM_PASSWORD}
+      - POSTGRESQL_DATABASE=bright-impact
+      - REPMGR_PASSWORD=${POSTGRES_REPMGR_PASSWORD}
+      - REPMGR_PRIMARY_HOST=pg-0
+      - REPMGR_PARTNER_NODES=pg-0,pg-1
+      - REPMGR_NODE_NAME=pg-0
+      - REPMGR_NODE_NETWORK_NAME=pg-0
+    networks:
+      - bright-impact-prod-internal
+
+  pg-1:
+    container_name: pg-1
+    image: bitnami/postgresql-repmgr:14
+    ports:
+      - 5432
+    volumes:
+      - bright_impact_pg_1_prod_data:/bitnami/postgresql
+    environment:
+      - POSTGRESQL_POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRESQL_USERNAME=customuser
+      - POSTGRESQL_PASSWORD=${POSTGRES_CUSTOM_PASSWORD}
+      - POSTGRESQL_DATABASE=bright-impact
+      - REPMGR_PASSWORD=${POSTGRES_REPMGR_PASSWORD}
+      - REPMGR_PRIMARY_HOST=pg-0
+      - REPMGR_PARTNER_NODES=pg-0,pg-1
+      - REPMGR_NODE_NAME=pg-1
+      - REPMGR_NODE_NETWORK_NAME=pg-1
+    networks:
+      - bright-impact-prod-internal
+
+  bright-impact-pgpool-prod:
+    container_name: bright-impact-pgpool-prod
+    image: bitnami/pgpool:4
+    ports:
+      - 45432:5432
+    environment:
+      - PGPOOL_BACKEND_NODES=0:pg-0:5432,1:pg-1:5432
+      - PGPOOL_SR_CHECK_USER=customuser
+      - PGPOOL_SR_CHECK_PASSWORD=${POSTGRES_CUSTOM_PASSWORD}
+      - PGPOOL_ENABLE_LDAP=no
+      - PGPOOL_POSTGRES_USERNAME=postgres
+      - PGPOOL_POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - PGPOOL_ADMIN_USERNAME=admin
+      - PGPOOL_ADMIN_PASSWORD=${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD", "/opt/bitnami/scripts/pgpool/healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bright-impact-prod-internal
+
+volumes:
+  bright_impact_pg_0_prod_data:
+    driver: local
+  bright_impact_pg_1_prod_data:
+    driver: local
+
+networks:
+  bright-impact-prod-internal:
+  proxynet:
+    external: true

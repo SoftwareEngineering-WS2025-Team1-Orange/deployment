@@ -1,0 +1,147 @@
+services:
+  bright-impact-mainframe-staging:
+    container_name: bright-impact-mainframe-staging
+    image: ghcr.io/softwareengineering-ws2025-team1-orange/mainframe:preview
+    ports:
+      - 18080:3000
+    networks:
+      - proxynet
+      - bright-impact-staging-internal
+    environment:
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@192.168.178.63:35432/postgres?schema=public&pgbouncer=true
+      - DONATIONBOX_JWT_ACCESS_SECRET=${DONATIONBOX_JWT_ACCESS_SECRET}
+      - DONATOR_JWT_ACCESS_SECRET=${DONATOR_JWT_ACCESS_SECRET}
+      - DONATOR_JWT_REFRESH_SECRET=${DONATOR_JWT_REFRESH_SECRET}
+      - NGO_JWT_ACCESS_SECRET=${NGO_JWT_ACCESS_SECRET}
+      - NGO_JWT_REFRESH_SECRET=${NGO_JWT_REFRESH_SECRET}
+      - MINIO_ENDPOINT=preview-bi-minio.sokutan.de
+      - MINIO_PORT=443
+      - MINIO_ACCESS_KEY=minio
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - MINIO_USE_SSL=true
+      - MONERO_WALLET_PUBLIC_KEY=41fLkHicU9w9a7mNpfxk13NxqB2FrzFc5HSnbDn1NUPwXy6dkkUgsyQVUBZ7qweyP19BWdMYJ4oq4D2SJ1eexPTv9MLCvQ3
+      - MONERO_MINING_POOL_BASE_URL=https://api.hashvault.pro/v3/monero/wallet
+      - NODE_ENV=staging
+    depends_on:
+      bright-impact-minio-staging:
+        condition: service_healthy
+      bright-impact-pgpool-staging:
+        condition: service_healthy
+
+  bright-impact-donation-box-staging:
+    container_name: bright-impact-donation-box-staging
+    image: ghcr.io/softwareengineering-ws2025-team1-orange/donation-box:preview
+    ports:
+      - 20080:80
+    networks:
+      - proxynet
+    environment:
+      - MAINFRAME_SOCKET_URL=wss://preview-mainframe.sokutan.de/api/v1/donationbox
+      - JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjdWlkIjoidTYzMXltamZiM21tMnkwMm5lenM2NmpiIiwiaWF0IjoxNzM0MzgzMzM2fQ.TQEoERywjjkyB5_Y_UpPYmS49LZ30KmCKVIUGGWmJ0A
+
+
+  bright-impact-organization-website-staging:
+    container_name: bright-impact-organization-website-staging
+    image: ghcr.io/softwareengineering-ws2025-team1-orange/organization-website:preview
+    ports:
+      - 13080:80
+    networks:
+      - proxynet
+
+  pg-2:
+    container_name: pg-2
+    image: bitnami/postgresql-repmgr:14
+    ports:
+      - 5432
+    volumes:
+      - bright_impact_pg_2_staging_data:/bitnami/postgresql
+    environment:
+      - POSTGRESQL_POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRESQL_USERNAME=customuser
+      - POSTGRESQL_PASSWORD=${POSTGRES_CUSTOM_PASSWORD}
+      - POSTGRESQL_DATABASE=bright-impact
+      - REPMGR_PASSWORD=${POSTGRES_REPMGR_PASSWORD}
+      - REPMGR_PRIMARY_HOST=pg-2
+      - REPMGR_PARTNER_NODES=pg-2,pg-3
+      - REPMGR_NODE_NAME=pg-2
+      - REPMGR_NODE_NETWORK_NAME=pg-2
+    networks:
+      - bright-impact-staging-internal
+
+  pg-3:
+    container_name: pg-3
+    image: bitnami/postgresql-repmgr:14
+    ports:
+      - 5432
+    volumes:
+      - bright_impact_pg_3_staging_data:/bitnami/postgresql
+    environment:
+      - POSTGRESQL_POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRESQL_USERNAME=customuser
+      - POSTGRESQL_PASSWORD=${POSTGRES_CUSTOM_PASSWORD}
+      - POSTGRESQL_DATABASE=bright-impact
+      - REPMGR_PASSWORD=${POSTGRES_REPMGR_PASSWORD}
+      - REPMGR_PRIMARY_HOST=pg-2
+      - REPMGR_PARTNER_NODES=pg-2,pg-3
+      - REPMGR_NODE_NAME=pg-3
+      - REPMGR_NODE_NETWORK_NAME=pg-3
+    networks:
+      - bright-impact-staging-internal
+
+  bright-impact-pgpool-staging:
+    container_name: bright-impact-pgpool-staging
+    image: bitnami/pgpool:4
+    ports:
+      - 35432:5432
+    environment:
+      - PGPOOL_BACKEND_NODES=0:pg-2:5432,1:pg-3:5432
+      - PGPOOL_SR_CHECK_USER=customuser
+      - PGPOOL_SR_CHECK_PASSWORD=${POSTGRES_CUSTOM_PASSWORD}
+      - PGPOOL_ENABLE_LDAP=no
+      - PGPOOL_POSTGRES_USERNAME=postgres
+      - PGPOOL_POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - PGPOOL_ADMIN_USERNAME=admin
+      - PGPOOL_ADMIN_PASSWORD=${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD", "/opt/bitnami/scripts/pgpool/healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bright-impact-staging-internal
+
+
+  bright-impact-minio-staging:
+    image: minio/minio
+    restart: always
+    container_name: bright-impact-minio-staging
+    volumes:
+      - bright_impact_minio_staging_data:/data:Z
+    environment:
+      - MINIO_ROOT_USER=minio
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+      - MC_HOST_custom=https://preview-bi-minio.sokutan.de:443/
+    ports:
+      - 19000:9000
+      - 19001:9001
+    networks:
+      - proxynet
+    command: "server /data --console-address :9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "custom"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  bright_impact_pg_2_staging_data:
+    driver: local
+  bright_impact_pg_3_staging_data:
+    driver: local
+  bright_impact_minio_staging_data:
+    driver: local
+
+networks:
+  bright-impact-staging-internal:
+  proxynet:
+    external: true
