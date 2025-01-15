@@ -36,8 +36,12 @@ services:
     networks:
       - proxynet
     environment:
-      - MAINFRAME_SOCKET_URL=wss://preview-mainframe.sokutan.de/api/v1/donationbox
-      - JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjdWlkIjoidTYzMXltamZiM21tMnkwMm5lenM2NmpiIiwiaWF0IjoxNzM0MzgzMzM2fQ.TQEoERywjjkyB5_Y_UpPYmS49LZ30KmCKVIUGGWmJ0A
+      - MAINFRAME_SOCKET_URL=wss://preview-mainframe.sokutan.de/api/v1/api-donationbox
+      - JWT=${DONATION_BOX_JWT}
+      - ENCRYPTION_KEY=${DONATION_BOX_ENCRYPTION_KEY}
+      - PASSKEY=${DONATION_BOX_PASSKEY}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
 
   bright-impact-organization-website-staging:
