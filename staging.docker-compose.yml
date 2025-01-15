@@ -40,6 +40,7 @@ services:
       - JWT=${DONATION_BOX_JWT}
       - ENCRYPTION_KEY=${DONATION_BOX_ENCRYPTION_KEY}
       - PASSKEY=${DONATION_BOX_PASSKEY}
+      - API_DNS=${DONATION_BOX_API_DNS}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 
